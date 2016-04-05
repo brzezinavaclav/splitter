@@ -27,6 +27,7 @@ if ($debug) {
 }
 
 include __DIR__.'/wallet-driver.php';
+$wallet = new BitcoinWallet($user, $pass, $server, $port);
 $data = '';
 /*Vypsání adres*/
 if(isset($_GET['get_addresses'])){
@@ -40,7 +41,6 @@ if(isset($_GET['get_addresses'])){
 }
 /*Generování adresy*/
 if(isset($_GET['get_address'])){
-    $wallet = new BitcoinWallet($user, $pass, $server, $port);
     if($result = mysqli_query($link, "INSERT INTO `addresses` VALUES (NULL,'".$wallet-> getnewaddress()."')")) echo json_encode(array('error' => 'no'));
     else echo json_encode(array('error' => 'yes', 'message' => '<b>SQL error! </b>' . mysqli_error($link)));
 }
@@ -59,26 +59,26 @@ if(isset($_GET['get_resend_addresses'])){
 }
 /*Přidání resend adresy*/
 if(isset($_GET['add_resend_address'])){
-    if(!empty(isset($_GET['resend_address']))){
-        if(!empty(isset($_GET['address_id']))){
-            if(!empty(isset($_GET['share']))){
-                $share = 0;
-                if($result = mysqli_query($link, "SELECT `share` FROM `resend_addresses`")){
-                    while($row = mysqli_fetch_array($result)) {
-                        $share += $row[0];
+        $address = $wallet->validateaddress($_GET['resend_address']);
+        if($address['isvalid']){
+            if(!empty(isset($_GET['address_id']))){
+                if(!empty(isset($_GET['share']))){
+                    $share = 0;
+                    if($result = mysqli_query($link, "SELECT `share` FROM `resend_addresses` WHERE `address_id`=". $_GET['address_id'])){
+                        while($row = mysqli_fetch_array($result)) {
+                            $share += $row[0];
+                        }
                     }
+                    if($share + $_GET['share'] <=100){
+                        if($result = mysqli_query($link, "INSERT INTO `resend_addresses` (`id`, `address_id`, `address`, `share`) VALUES (NULL, '".$_GET['address_id']."', '".$_GET['resend_address']."', '".$_GET['share']."');")) echo json_encode(array('error' => 'no'));
+                        else echo json_encode(array('error' => 'yes', 'message' => '<b>SQL error! </b>' . mysqli_error($link)));
+                    }
+                    else echo json_encode(array('error' => 'yes', 'message' => '<b>Error! </b>The count of all shares cannot be over 100%!'));
                 }
-                if($share + $_GET['share'] <=100){
-                    if($result = mysqli_query($link, "INSERT INTO `resend_addresses` (`id`, `address_id`, `address`, `share`) VALUES (NULL, '".$_GET['address_id']."', '".$_GET['resend_address']."', '".$_GET['share']."');")) echo json_encode(array('error' => 'no'));
-                    else echo json_encode(array('error' => 'yes', 'message' => '<b>SQL error! </b>' . mysqli_error($link)));
-                }
-                else echo json_encode(array('error' => 'yes', 'message' => '<b>Error! </b>The count of all shares cannot be over 100%!'));
+                else echo json_encode(array('error' => 'yes', 'message' => '<b>Error! </b>Incorrect share'));
             }
-            else echo json_encode(array('error' => 'yes', 'message' => '<b>Error! </b>Incorrect share'));
         }
-        else echo json_encode(array('error' => 'yes', 'message' => '<b>Error! </b>Incorrect address'));
-    }
-    else echo json_encode(array('error' => 'yes', 'message' => '<b>Error! </b>Incorrect resend address'));
+        else echo json_encode(array('error' => 'yes', 'message' => '<b>Error! </b>Invalid resend address'));
 }
 /*Odstranění resend adresy*/
 if(isset($_GET['delete_resend_addresses'])){

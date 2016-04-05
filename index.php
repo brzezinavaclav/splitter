@@ -143,7 +143,7 @@
             'success': function(data) {
                 if (data['error']=='no') {
                     md_resend_adresses(address_id);
-                    m_alert('success','<b>Success! </b>Adress has been deleted');
+                    m_alert('success','<b>Success! </b>Adress has been created');
                 }
                 if (data['error']=='yes') m_alert('danger', data['message']);
             }
