@@ -1,47 +1,28 @@
 <?php
-header("Content-Type: application/json");
-/*MySQLi*/
-$link = mysqli_connect("127.0.0.1", "root", "", "address_splitter");
+include __DIR__.'/init.php';
 
-if (!$link) {
-  echo "Error: Unable to connect to MySQL." . PHP_EOL;
-  echo "Debugging errno: " . mysqli_connect_errno() . PHP_EOL;
-  echo "Debugging error: " . mysqli_connect_error() . PHP_EOL;
-  exit;
-}
-
-mysqli_query($link, "SET NAMES utf8");
-// Bitcoin RPC login information:
-$user = 'Lc4SYqCMaQQ5lutiVlKM';
-$pass = 'N3N1zkWetpKCm3SIlrRZ6278r0xr1uJMyCVMu7pnVsZejnaMWav1zJlnkbJD';
-$server = '46.28.108.48';
-$port = '18332';
-
-$debug = 1;       // Debug mode (0/1)
-
-if ($debug) {
-  ini_set('display_startup_errors',1);
-  ini_set('display_errors',1);
-  error_reporting(-1);
-}
-
-include __DIR__.'/wallet-driver.php';
-?>
-<?php
 $wallet = new BitcoinWallet($user, $pass, $server, $port);
 
-global $received;
-foreach($wallet->listtransactions() as $transaction){
-  if($result = mysqli_query($link, "SELECT * FROM `received` WHERE `id`=".$transaction['txid'])){
-    echo mysqli_num_rows($result);
-  }
-  if($transaction['category'] == 'receive'){
-    $received[] = array(
-        'id' => $transaction['txid'],
-        'address' => $transaction['address'],
-        'amount' => $transaction['amount'],
-    );
-  }
+foreach ($wallet->listtransactions('', 10000) as $transaction) {
+    /*Je adresa v databázi?*/
+    $resend = mysqli_query($link, "SELECT * FROM `addresses` WHERE `address`='" . $transaction['address'] . "' LIMIT 1");
+    /*Byla už platba rozeslána?*/
+    $resendet = mysqli_query($link, "SELECT * FROM `received` WHERE `id`='" . $transaction['txid'] . "'");
+    if ($transaction['category'] == 'receive' && mysqli_num_rows($resend) && !mysqli_num_rows($resendet)) {
+        /*Vybere adresy pro rozelání*/
+        $address = mysqli_fetch_assoc($resend);
+        $resend_addresses = mysqli_query($link, "SELECT * FROM `resend_addresses` WHERE `address_id`='" . $address['id'] . "' ");
+        /*Rozeslání na adresy*/
+        while ($row = mysqli_fetch_assoc($resend_addresses)) {
+            $q = mysqli_query($link, "INSERT INTO `received` VALUES('" . $transaction['txid'] . "')");
+            $wallet->sendtoaddress($row['address'], $row['share']/100*$transaction['amount']);
+            echo 'Sent <b>' . $row['share']/100*$transaction['amount'] . '</b> BTC to <code>' . $row['address'] . '</code></br>';
+        }
+    }
 }
-print_r($received);
+echo '<h1>Transakce</h1><pre>';
+$transactions = $wallet->listtransactions('', 1000);
+krsort($transactions);
+print_r($transactions);
 ?>
+</pre>
